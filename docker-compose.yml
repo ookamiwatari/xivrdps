@@ -1,0 +1,18 @@
+version: "3"
+services:
+    xivrdps:
+        container_name: xivrdps
+        env_file: .env
+        depends_on:
+            - mongodb
+        build:
+            context: ./
+            dockerfile: Dockerfile
+        ports:
+            - "8080:8080"
+    mongodb:
+        image: mongo
+        volumes:
+            - mongodata:/data/db
+volumes:
+    mongodata:

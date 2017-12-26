@@ -1,0 +1,16 @@
+# Modules and Generated files of Node.js
+node_modules/
+npm-debug.log
+
+# VCS files
+.git/
+.github/
+
+# env files
+.env
+.env.example
+
+# Other files
+docker-compose.yml
+Procfile
+README.md
