@@ -173,7 +173,7 @@ class Views {
             const getEncounter = (err, data) => {
               if (!err && data && data.damageDone && data.damageDone.length) {
                 res.header('Content-Type', 'application/json; charset=utf-8')
-                res.send(data)
+                res.send(this.playersView(data))
               } else {
                 getEncounterFromFFLogs()
               }
@@ -229,7 +229,7 @@ class Views {
                         contribution: this.fflogs.damageContributionSimple(contribution)
                       }
                       res.header('Content-Type', 'application/json; charset=utf-8')
-                      res.send(data)
+                      res.send(this.playersView(data))
                       const encounterResultModel = new Result(data)
                       encounterResultModel.save()
                     })
