@@ -1,6 +1,14 @@
 const ChangeLog = {
   changes: [
     {
+      date: new Date('12-30-2017'),
+      description: '',
+      list: [
+        'Added API of encounter.'
+      ]
+    },
+
+    {
       date: new Date('12-21-2017'),
       description: '',
       list: [
