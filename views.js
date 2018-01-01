@@ -257,7 +257,8 @@ class Views {
     }
   }
 
-  playersView(data) {
+  playersView(encounterData) {
+    var data = JSON.parse(JSON.stringify(encounterData))
     data.totalPersonalDPS = 0
     data.totalRaidDPS = 0
     data.totalContribution = 0
