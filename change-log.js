@@ -1,6 +1,32 @@
 const ChangeLog = {
   changes: [
     {
+      date: new Date('02-02-2018'),
+      description: 'Definitions page added.',
+      list: [
+        'The definitions page was added in order to show all buff metadata to people viewing this site. All calculations should be completely transparent on how they are done, and if something doesn\'t seem correct, they can contact me to fix it, or submit a pull request with the fix themselves.',
+        'The disclaimers for haste buffs has been changed to ^, the disclaimers for direct hit buffs has been changed to `, critical hit disclaimers are still *. Now you can distinguish the type from it.'
+      ]
+    },
+
+    {
+      date: new Date('01-27-2018'),
+      description: '',
+      list: [
+        'Patch version is now tracked (starting with 4.0). If a buff had changes within an encounter\'s patch, it will use the correct version of the buff. Recaching will need to be done, since this does affect old logs.'
+      ]
+    },
+
+    {
+      date: new Date('01-09-2018'),
+      description: '',
+      list: [
+        'Expanded cards are now checked if the card buff lasted for >=60s. All other solo cards will still be checked as Enhanced for now, until we can check the Royal Road.',
+        'Overwritten buffs are now handled separately.'
+      ]
+    },
+
+    {
       date: new Date('12-30-2017'),
       description: '',
       list: [
@@ -9,7 +35,7 @@ const ChangeLog = {
     },
 
     {
-      date: new Date('12-21-2017'),
+        date: new Date('12-21-2017'),
       description: '',
       list: [
         'Save full results instead of just damage done results to reduce number of FFLogs requests. The only issue is that if more data is needed/changed, this table will likely need to be cleared.'

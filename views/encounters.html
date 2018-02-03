@@ -4,6 +4,7 @@
   <div class="container container-inner content">
     <h4>{{encounter.name}} ({{encounter.timeTaken}})<h4>
     <h5>{{encounter.zoneName}}</h5>
+    <h5><i>{{encounter.dateStr}} {{encounter.patchStr}}</i></h5>
   </div>
   <table class="table table-striped">
     <tr>
@@ -41,9 +42,7 @@
       Original Log
     </a>
     <hr />
-    Created by: Blackcat Ofillomen of Gilgamesh
-    <br />Created using the FFLogs API: <a href="https://www.fflogs.com">https://www.fflogs.com</a>
-    <br />Thanks to Kihra for all the great work he's done on FFLogs to date!
+    {{> links}}
   </div>
 </div>
 

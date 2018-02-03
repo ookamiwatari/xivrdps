@@ -1,21 +1,8 @@
 const resources = require('./fflogs-resources')
 const changeLog = require('./change-log')
 const Result = require('./models/result')
-
-const encounterIds = [
-  {name: 'Ultimate', encounters: {'Unending Coil': '1039'}},
-  {name: 'Deltascape (Savage)', encounters: {'Alte Roite': '42', 'Catastrophe': '43', 'Halicarnassus': '44', 'Exdeath': '45', 'Neo Exdeath': '46'}},
-  {name: 'Trials', encounters: {'Susano': '1036', 'Lakshmi': '1037', 'Shinryu': '1038'}},
-  {name: 'Rabanastre', encounters: {'Mateus, the Corrupt': '2008', 'Hashmal, Bringer of Order': '2009', 'Rofocale': '2010', 'Argath Thadalfus': '2011'}}
-]
-
-encounterIds.forEach(encounter => {
-  const encounters = []
-  for (var key in encounter.encounters) {
-    encounters.push({name: key, id: encounter.encounters[key]})
-  }
-  encounter.encounters = encounters
-})
+const debug = false
+const dateOptions = {year: "numeric", month: "long", day: "numeric"}
 
 class Views {
   constructor(app, fflogs) {
@@ -25,7 +12,7 @@ class Views {
     this.views = {
       '/': (req, res) => {
         res.render('index', {
-          encounterIds: encounterIds,
+          encounterIds: resources.encounters,
           worlds: resources.worlds
         })
       },
@@ -34,12 +21,16 @@ class Views {
         res.render('changelog', changeLog)
       },
 
+      'definitions': (req, res) => {
+        res.render('definitions', resourcesAsView(resources))
+      },
+
       'listing/:id': (req, res) => {
         const id = req.params.id
         fflogs.listingData(id, results => {
           if (results && results.rankings) {
             let encounterName = ''
-            encounterIds.forEach(category => {
+            resources.encounters.forEach(category => {
               if (encounterName) return
               category.encounters.forEach(encounter => {
                 if (encounter.id === id) encounterName = encounter.name
@@ -96,10 +87,14 @@ class Views {
               }
             }
 
-            if (fightId > -1) {
-              Result.findOne({id: encounterId, fightId: fightId}).exec(getEncounter)
+            if (!debug) {
+              if (fightId > -1) {
+                Result.findOne({id: encounterId, fightId: fightId}).exec(getEncounter)
+              } else {
+                Result.findLatest(encounterId, getEncounter)
+              }
             } else {
-              Result.findLatest(encounterId, getEncounter)
+              getEncounterFromFFLogs()
             }
           } catch (e) {
             getEncounterFromFFLogs()
@@ -146,8 +141,10 @@ class Views {
                         contribution: this.fflogs.damageContributionSimple(contribution)
                       }
                       res.render('encounters', this.playersView(data))
-                      const encounterResultModel = new Result(data)
-                      encounterResultModel.save()
+                      if (!debug) {
+                        const encounterResultModel = new Result(data)
+                        encounterResultModel.save()
+                      }
                     })
                   })
                 })
@@ -259,6 +256,7 @@ class Views {
 
   playersView(encounterData) {
     var data = JSON.parse(JSON.stringify(encounterData))
+    const encounter = data.encounter
     data.totalPersonalDPS = 0
     data.totalRaidDPS = 0
     data.totalContribution = 0
@@ -277,8 +275,8 @@ class Views {
         entry.contributionDPS = 0
         entry.contributions = []
         let dpsPenalty = 0
-        const buffs = data.contribution.filter(b => resources.buffs[b.name].job === entry.type)
-        const otherBuffs = data.contribution.filter(b => resources.buffs[b.name].job !== entry.type)
+        const buffs = data.contribution.filter(b => resources.buffs[encounter.patch][b.name].job === entry.type)
+        const otherBuffs = data.contribution.filter(b => resources.buffs[encounter.patch][b.name].job !== entry.type)
         const jobAmount = data.jobAmount[entry.type] || 1
         entry.fromOtherBuffs = []
         otherBuffs.forEach(buff => {
@@ -290,7 +288,7 @@ class Views {
           }
         })
         buffs.forEach(buff => {
-          const disclaimer = resources.buffs[buff.name].critBuff ? '*' : ''
+          const disclaimer = resources.disclaimers[resources.buffs[encounter.patch][buff.name].type] || ''
           let dps = buff.dps / jobAmount
           entry.contributions.push({ name: buff.name, icon: buff.icon, dps: dps.toFixed(1) + disclaimer })
           entry.contributionDPS += dps
@@ -316,6 +314,73 @@ class Views {
   }
 }
 
+const parentViewTransforms = {
+  buffsLight: (obj, parent, parentKey) => {
+    const patchDate = resources.patches[obj.origKey] ? '(' + resources.patches[obj.origKey].release.toLocaleDateString('en-us', dateOptions) + ')' : ''
+    const header = `<h3>Patch ${obj.key} ${patchDate}</h3>`
+    const buffs = Object.keys(obj.obj).filter(buffName => obj.obj[buffName] && obj.obj[buffName].bonus).map(buffName => {
+      const buff = obj.obj[buffName]
+      const icon = buff.icon ? `<img src="/img/buffs/${buff.icon}.png" />` : ''
+      const jobIcon = (job, size) => job ? `<img src="img/class/${job}.png" alt="${job}" width="${size}" height="${size}" />` : ''
+      const disclaimer = resources.disclaimers[buff.type] || ''
+      let buffText = ''
+      buffName = buffName.replace(/\[(\S)\]/g, '<sup>$1</sup>')
+      if (buff.buff) buffText = 'Buff'
+      if (buff.debuff) buffText = 'Debuff'
+      const head = `
+        <div class="buff-definition">
+          <div class="buff-name">${icon} ${buffName} ${jobIcon(buff.job, 32)}</div>
+            <div class="buff-content">
+      `
+      let content = ''
+      if (buff.isCard) {
+        content += `
+          <div class="buff-param buff-bonus">Expanded Bonus: ${parseFloat((buff.bonus * 0.5 * 100).toFixed(1))}%${disclaimer}</div>
+          <div class="buff-param buff-bonus">Enhanced Bonus: ${parseFloat((buff.bonus * 1.5 * 100).toFixed(1))}%${disclaimer}</div>
+        `
+      }
+      content += `
+        <div class="buff-param buff-bonus">Bonus: ${buff.bonusPercentage}${disclaimer}</div>
+        <div class="buff-param">Type: ${buff.typeStr} ${buffText}</div>
+      `
+      if (buff.affected && buff.affected.length) {
+        content += `<div class="buff-param buff-bonus">Affected: ${buff.affected.map(jobName => jobIcon(jobName, 20)).join(' ')}</div>`
+      }
+      if (buff.id) content += `<div class="buff-param">ID: ${buff.id}</div>`
+      const foot = "</div></div>"
+      return head + content + foot
+    }).join('\n')
+    obj.buffs = (text, render) => header + buffs
+  }
+}
+
+function viewTransform(obj, parent, parentKey) {
+  if (parentViewTransforms[parentKey]) parentViewTransforms[parentKey](obj, parent, parentKey)
+  obj.obj = objectAsView(obj.obj, obj, obj.origKey)
+  return obj
+}
+
+function objectAsView(obj, parent, parentKey) {
+  return Object.keys(obj).map(key => {
+    let value = obj[key]
+    if (typeof value === 'object' && value.length === undefined) {
+      return viewTransform({key: humanizeCamelCase(key), origKey: key, obj: value}, obj, parentKey)
+    }
+    return {key: humanizeCamelCase(key), origKey: key, value: value}
+  }).reverse()
+}
+
+function resourcesAsView(resources) {
+  const resourcesView = {}
+  Object.keys(resources).forEach(name => {
+    const resource = resources[name]
+    if (typeof resource === 'object' && resource.length === undefined) {
+      resourcesView[name] = objectAsView(resource, resources, name)
+    }
+  })
+  return resourcesView
+}
+
 function intervalObj(s) {
   var ms = s % 1000;
   s = (s - ms) / 1000;
@@ -335,6 +400,12 @@ function timeStr(timeObj) {
   if (timeObj.hours) timeString += addZ(timeObj.hours) + ':';
   timeString += (timeObj.hours ? addZ(timeObj.minutes) : timeObj.minutes) + ':' + addZ(timeObj.seconds)
   return timeString
+}
+
+function humanizeCamelCase(str) {
+  return str
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, str => str.toUpperCase())
 }
 
 process.on('uncaughtException', function(err) {
