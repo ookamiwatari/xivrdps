@@ -1,8 +1,10 @@
 const resources = require('./fflogs-resources')
 const changeLog = require('./change-log')
 const Result = require('./models/result')
+const RaidDPSPipeline = require('./raid-dps-pipeline')
 const debug = false
 const dateOptions = {year: "numeric", month: "long", day: "numeric"}
+const pipelines = {}
 
 class Views {
   constructor(app, fflogs) {
@@ -72,92 +74,116 @@ class Views {
         }
       },
 
+      'reports/:id': (req, res) => {
+        res.render('redirect-fflogs-like-url', {})
+      },
+
       'encounters/:id/:fightId?': (req, res) => {
-        const encounterId = req.params.id
-        let fightId = req.params.fightId || -1
-        fightId = fightId !== undefined ? parseFloat(fightId) : -1
+        const pipeline = new RaidDPSPipeline(
+          this.fflogs,
+          req,
+          res,
+          progress => {},
+          results => {},
+          error => {
+            res.render('errors', error)
+            delete pipelines[pipeline.token]
+          }
+        )
+        pipelines[pipeline.token] = pipeline
 
         const getEncounterFromDB = () => {
           try {
             const getEncounter = (err, data) => {
               if (!err && data && data.damageDone && data.damageDone.length) {
-                res.render('encounters', this.playersView(data))
+                res.render('encounters', pipeline.playersView(data))
               } else {
-                getEncounterFromFFLogs()
+                pipeline.start()
+                res.render('loadingencounter', {token: pipeline.token})
               }
             }
 
             if (!debug) {
-              if (fightId > -1) {
-                Result.findOne({id: encounterId, fightId: fightId}).exec(getEncounter)
+              if (pipeline.fightId > -1) {
+                Result.findOne({id: pipeline.encounterId, fightId: pipeline.fightId}).exec(getEncounter)
               } else {
-                Result.findLatest(encounterId, getEncounter)
+                Result.findLatest(pipeline.encounterId, getEncounter)
               }
             } else {
-              getEncounterFromFFLogs()
+              pipeline.start()
+              res.render('loadingencounter', {token: pipeline.token})
             }
           } catch (e) {
-            getEncounterFromFFLogs()
+            pipeline.start()
+            res.render('loadingencounter', {token: pipeline.token})
           }
         }
-
-        const getEncounterFromFFLogs = () => {
-          try {
-            fflogs.encounter(encounterId, fightId, {}, encounter => {
-              if (encounter) {
-                if (encounter.error) {
-                  res.render('errors', encounter)
-                  return
-                }
-                fflogs.damageDone(encounter, {}, damageDone => {
-                  if (!damageDone) {
-                    res.render('errors', {error: 'An unknown error has occured.'})
-                    return
-                  } else if (damageDone.error) {
-                    res.render('errors', damageDone)
-                    return
-                  }
-                  fflogs.buffTimeline(encounter, {}, buffs => {
-                    if (!buffs) {
-                      res.render('errors', {error: 'An unknown error has occured.'})
-                      return
-                    } else if (buffs.error) {
-                      res.render('errors', buffs)
-                      return
-                    }
-                    fflogs.damageFromBuffs(encounter, buffs, {}, contribution => {
-                      if (!contribution) {
-                        res.render('errors', {error: 'An unknown error has occured.'})
-                        return
-                      } else if (contribution.error) {
-                        res.render('errors', contribution)
-                        return
-                      }
-                      const data = {
-                        id: encounter.id,
-                        fightId: encounter.fightId,
-                        encounter: encounter,
-                        damageDone: this.fflogs.damageDoneSimple(damageDone),
-                        contribution: this.fflogs.damageContributionSimple(contribution)
-                      }
-                      res.render('encounters', this.playersView(data))
-                      if (!debug) {
-                        const encounterResultModel = new Result(data)
-                        encounterResultModel.save()
-                      }
-                    })
-                  })
-                })
-              } else {
-                res.render('errors', {error: 'Unknown or Malformatted Encounter/Fight.'})
-              }
-            })
-          } catch(e) {
-            res.render('errors', {error: 'An unknown error has occured.'})
-          }
-        }
-
         getEncounterFromDB()
+      },
+
+      'api/encounter-progress/:token': (req, res) => {
+        const pipeline = pipelines[req.params.token]
+        let sent = false
+        if (!pipeline) {
+          res.json({error: 'Unloaded encounter.'})
+          return
+        }
+        if (pipeline.currentStage === 'Done') {
+          res.json(pipeline.results)
+          delete pipelines[pipeline.token]
+        } else {
+          pipeline.onProgress = progress => {
+            if (!sent) {
+              res.json({
+                type: 'progress',
+                stage: pipeline.currentStage,
+                nextStage: pipeline.stageList[pipeline.stageNumber + 1],
+                completedStages: pipeline.completedStages,
+                progressInfo: pipeline.progressInfo || {}
+              })
+              sent = true
+            }
+          }
+          pipeline.onError = error => {
+            if (!sent) res.json(error)
+            delete pipelines[pipeline.token]
+            sent = true
+          }
+          pipeline.onSuccess = results => {
+            pipeline.results = results
+            if (!sent) {
+              res.json(results)
+              delete pipelines[pipeline.token]
+              sent = true
+            }
+            if (!debug) {
+              const encounterResultModel = new Result(results)
+              encounterResultModel.save()
+            }
+          }
+        }
+      },
+
+      'api/encounters/:id/:fightId?': (req, res) => {
+        const showProgress = (req.query.showProgress === '' || req.query.showProgress === true)
+        const pipeline = new RaidDPSPipeline(
+          this.fflogs,
+          req,
+          res,
+          progress => {},
+          results => {
+            if (!showProgress) res.json(results)
+          },
+          error => {
+            res.json(error)
+            delete pipelines[pipeline.token]
+          }
+        )
+        if (showProgress) {
+          pipelines[pipeline.token] = pipeline
+          res.json({token: pipeline.token})
+        }
+        pipeline.start()
       },
 
       'api/encounters/:id/:fightId?': (req, res) => {
@@ -253,72 +279,13 @@ class Views {
       app.get(view === '/' || view === '*' ? view : '/' + view, this.views[view])
     }
   }
-
-  playersView(encounterData) {
-    var data = JSON.parse(JSON.stringify(encounterData))
-    const encounter = data.encounter
-    data.totalPersonalDPS = 0
-    data.totalRaidDPS = 0
-    data.totalContribution = 0
-
-    data.jobAmount = {}
-    data.damageDone.forEach(entry => {
-      data.jobAmount[entry.type] = data.jobAmount[entry.type] || 0
-      data.jobAmount[entry.type]++
-    })
-
-    data.damageDone.forEach(entry => {
-      if (entry.type === 'LimitBreak') {
-        entry.raidDPSFull = entry.personalDPSFull
-        entry.raidDPS = entry.personalDPS
-      } else {
-        entry.contributionDPS = 0
-        entry.contributions = []
-        let dpsPenalty = 0
-        const buffs = data.contribution.filter(b => resources.buffs[encounter.patch][b.name].job === entry.type)
-        const otherBuffs = data.contribution.filter(b => resources.buffs[encounter.patch][b.name].job !== entry.type)
-        const jobAmount = data.jobAmount[entry.type] || 1
-        entry.fromOtherBuffs = []
-        otherBuffs.forEach(buff => {
-          const buffEntry = buff.entries.find(e => e.name === entry.name)
-          if (buffEntry) {
-            const dpsContribution = (buffEntry.dpsContribution || 0)
-            dpsPenalty += dpsContribution
-            entry.fromOtherBuffs.push({buff: buff, dps: dpsContribution.toFixed(1) })
-          }
-        })
-        buffs.forEach(buff => {
-          const disclaimer = resources.disclaimers[resources.buffs[encounter.patch][buff.name].type] || ''
-          let dps = buff.dps / jobAmount
-          entry.contributions.push({ name: buff.name, icon: buff.icon, dps: dps.toFixed(1) + disclaimer })
-          entry.contributionDPS += dps
-        })
-        entry.raidDPSFull = (entry.personalDPSFull + entry.contributionDPS - dpsPenalty)
-        entry.raidDPS = entry.raidDPSFull.toFixed(1)
-        entry.penalty = (-dpsPenalty).toFixed(1)
-        entry.contributionDPSFull = entry.contributionDPS
-        entry.contributionDPS = entry.contributionDPS.toFixed(1)
-      }
-      data.totalContribution += (entry.contributionDPSFull || 0)
-      data.totalPersonalDPS += (entry.personalDPSFull || 0)
-      data.totalRaidDPS += (entry.raidDPSFull || 0)
-    })
-
-    data.totalContribution = data.totalContribution.toFixed(1)
-    data.totalRaidDPS = data.totalRaidDPS.toFixed(1)
-    data.totalPersonalDPS = data.totalPersonalDPS.toFixed(1)
-
-    data.encounter.timeTaken = timeStr(intervalObj(data.encounter.totalTime))
-
-    return data
-  }
 }
 
 const parentViewTransforms = {
   buffsLight: (obj, parent, parentKey) => {
     const patchDate = resources.patches[obj.origKey] ? '(' + resources.patches[obj.origKey].release.toLocaleDateString('en-us', dateOptions) + ')' : ''
     const header = `<h3>Patch ${obj.key} ${patchDate}</h3>`
-    const buffs = Object.keys(obj.obj).filter(buffName => obj.obj[buffName] && obj.obj[buffName].bonus).map(buffName => {
+    const buffs = Object.keys(obj.obj).filter(buffName => obj.obj[buffName] && (obj.obj[buffName].bonus || obj.obj[buffName].type === 'special')).map(buffName => {
       const buff = obj.obj[buffName]
       const icon = buff.icon ? `<img src="/img/buffs/${buff.icon}.png" />` : ''
       const jobIcon = (job, size) => job ? `<img src="img/class/${job}.png" alt="${job}" width="${size}" height="${size}" />` : ''
@@ -339,8 +306,8 @@ const parentViewTransforms = {
           <div class="buff-param buff-bonus">Enhanced Bonus: ${parseFloat((buff.bonus * 1.5 * 100).toFixed(1))}%${disclaimer}</div>
         `
       }
+      if (buff.bonus) content += `<div class="buff-param buff-bonus">Bonus: ${buff.bonusPercentage}${disclaimer}</div>`
       content += `
-        <div class="buff-param buff-bonus">Bonus: ${buff.bonusPercentage}${disclaimer}</div>
         <div class="buff-param">Type: ${buff.typeStr} ${buffText}</div>
       `
       if (buff.affected && buff.affected.length) {

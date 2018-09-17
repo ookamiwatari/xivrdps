@@ -1,8 +1,5 @@
 const critModifier = 0.4666666666
 const dhModifier = 0.25
-const hasteStaticBuff = (hasteBonus) => {
-  return 1 / (1 - hasteBonus) - 1
-}
 
 function exclusionFilter(arr, excluded) {
   return arr.filter(job => {
@@ -15,6 +12,7 @@ function exclusionFilter(arr, excluded) {
 const physClasses = excluded => exclusionFilter(['Bard', 'Machinist', 'Dragoon', 'Monk', 'Ninja', 'Samurai', 'Paladin', 'DarkKnight', 'Warrior'], excluded)
 const magicClasses = excluded => exclusionFilter(['Astrologian', 'Scholar', 'WhiteMage', 'BlackMage', 'RedMage', 'Summoner'], excluded)
 const piercingClasses = excluded => exclusionFilter(['Bard', 'Machinist', 'Dragoon'], excluded)
+const slashingClasses = ['Ninja', 'Samurai', 'Warrior', 'Paladin', 'DarkKnight']
 
 const FFLogsResources = {
   buffIds: {
@@ -23,9 +21,9 @@ const FFLogsResources = {
     'Piercing Resistance Down': 1000820,
     'Chain Stratagem': 1001221,
     'Foe Requiem': 1000140,
-    //'Slashing Resistance Down': 1000819,
+    'Slashing Resistance Down': 1000819,
     'Fey Wind': 1000799,
-    'Left Eye': 1001184,
+    'Left Eye': 1001454,
     'The Spear': 1000832,
     'The Arrow': 1000831,
     'The Balance': 1000829,
@@ -52,22 +50,25 @@ const FFLogsResources = {
     '4.2': {release: new Date('2018-01-30 11:00:00Z')}
   },
 
+  specialBuffs: ['Radiant Shield'],
+
   buffs: {
     '4.0': {
       'Trick Attack': {bonus: 0.1, job: 'Ninja', debuff: true, icon: '015000-015020'},
       'The Balance': {bonus: 0.2, job: 'Astrologian', buff: true, isCard: true, icon: '013000-013204'},
       'The Spear': {bonus: 0, job: 'Astrologian', type: 'crit', buff: true, isCard: true, icon: '013000-013207'},
-      'The Arrow': {bonus: hasteStaticBuff(0.1), job: 'Astrologian', type: 'haste', buff: true, isCard: true, icon: '013000-013206'},
+      'The Arrow': {bonus: 0.1, haste: 0.1, job: 'Astrologian', type: 'haste', buff: true, isCard: true, icon: '013000-013206'},
       'Foe Requiem': {bonus: 0.03, job: 'Bard', debuff: true, icon: '012000-012608'},
       'Hypercharge': {bonus: 0.05, job: 'Machinist', debuff: true, icon: '015000-015020'},
       'Devotion': {bonus: 0.02, job: 'Summoner', buff: true, icon: '012000-012681'},
-      'Fey Wind': {bonus: hasteStaticBuff(0.03), job: 'Scholar', type: 'haste', buff: true, icon: '012000-012807'},
+      'Fey Wind': {bonus: 0.03, haste: 0.03, job: 'Scholar', type: 'haste', buff: true, icon: '012000-012807'},
       'Chain Stratagem': {bonus: 0.15 * critModifier, job: 'Scholar', type: 'crit', debuff: true, icon: '012000-012809'},
       'Battle Voice': {bonus: 0.15 * dhModifier, job: 'Bard', type: 'dh', buff: true, icon: '012000-012601'},
       'Critical Up': {bonus: 0.02 * critModifier, job: 'Bard', type: 'crit', buff: true, icon: '012000-012613'},
       'Battle Litany': {bonus: 0.15 * critModifier, job: 'Dragoon', type: 'crit', buff: true, icon: '012000-012578'},
       'Left Eye': {bonus: 0.05, job: 'Dragoon', buff: true, icon: '012000-012582'},
       'Piercing Resistance Down': {bonus: 0.05, job: 'Dragoon', debuff: true, affected: piercingClasses('Dragoon'), icon: '015000-015065'},
+      'Slashing Resistance Down': {bonus: 0.1, debuff: true, affected: slashingClasses, icon: '015000-015786'},
       'Physical Vulnerability Up': {bonus: 0.02, job: 'Summoner', debuff: true, affected: physClasses('Summoner'), icon: '015000-015053'},
       'Embolden': {bonus: 0, job: 'RedMage', buff: true, affected: physClasses('RedMage'), excludeId: 1001239},
       'Embolden[5]': {bonus: 0.1, job: 'RedMage', buff: true, affected: physClasses('RedMage'), excludeId: 1001239, icon: 'embolden5'},
@@ -77,7 +78,8 @@ const FFLogsResources = {
       'Embolden[1]': {bonus: 0.02, job: 'RedMage', buff: true, affected: physClasses('RedMage'), excludeId: 1001239, icon: 'embolden1'},
       'Magic Vulnerability Up': {bonus: 0.1, job: 'Summoner', debuff: true, affected: magicClasses('Summoner'), icon: '015000-015057'},
       'Brotherhood': {bonus: 0.05, job: 'Monk', buff: true, affected: physClasses('Monk'), icon: '012000-012529'},
-      'Enhanced Royal Road': {isRoyalRoad: true, buff: true}
+      'Enhanced Royal Road': {isRoyalRoad: true, buff: true},
+      'Radiant Shield': {type: 'special', job: 'Summoner', icon: '012000-012711'}
     },
     '4.05': {
       'The Spear': {bonus: 0.1 * critModifier},
@@ -95,11 +97,98 @@ const FFLogsResources = {
 
   encounters: [
     {name: 'Sigmascape (Savage)', encounters: {'Phantom Train': '51', 'Demon Chadarnook': '52', 'Guardian': '53', 'Kefka': '54', 'God Kefka': '55'}},
-    {name: 'Ultimate', encounters: {'Unending Coil': '1039'}},
+    {name: 'Ultimate', encounters: {'Unending Coil': '1039', 'Ultima Weapon': '1042'}},
     {name: 'Deltascape (Savage)', encounters: {'Alte Roite': '42', 'Catastrophe': '43', 'Halicarnassus': '44', 'Exdeath': '45', 'Neo Exdeath': '46'}},
-    {name: 'Trials', encounters: {'Susano': '1036', 'Lakshmi': '1037', 'Shinryu': '1038'}},
+    {name: 'Trials', encounters: {'Susano': '1036', 'Lakshmi': '1037', 'Shinryu': '1038', 'Byakko': '1040', 'Tsukuyomi': '1041'}},
     {name: 'Rabanastre', encounters: {'Mateus, the Corrupt': '2008', 'Hashmal, Bringer of Order': '2009', 'Rofocale': '2010', 'Argath Thadalfus': '2011'}}
   ],
+
+  targetBlacklist: {
+    '52': ['Easterly'],
+    '53': ['Bibliolatrist']
+  },
+
+  ogcdAbilities: [
+    25,
+    26,
+    29,
+    23,
+    7383,
+    7386,
+    7387,
+    3633,
+    3639,
+    3640,
+    3643,
+    3571,
+    167,
+    174,
+    179,
+    7441,
+    7440,
+    7444,
+    71,
+    64,
+    67,
+    3547,
+    3545,
+    3543,
+    7864,
+    7865,
+    7866,
+    7868,
+    92,
+    95,
+    96,
+    3555,
+    7399,
+    7400,
+    2246,
+    2248,
+    2258,
+    2256,
+    3566,
+    7401,
+    7402,
+    2265,
+    2266,
+    2267,
+    2268,
+    2270,
+    2271,
+    7500,
+    7492,
+    7493,
+    7490,
+    7491,
+    7501,
+    7496,
+    103,
+    110,
+    117,
+    7404,
+    3562,
+    2875,
+    2878,
+    2874,
+    2890,
+    7416,
+    7417,
+    7418,
+    181,
+    3578,
+    3580,
+    3582,
+    7449,
+    793,
+    796,
+    791,
+    801,
+    7506,
+    7515,
+    7517,
+    7519
+ ],
 
   worlds: {
     NA: [
@@ -211,7 +300,8 @@ const typesFull = {
   crit: 'Critical Hit',
   dh: 'Direct Hit',
   haste: 'Haste',
-  damage: 'Damage'
+  damage: 'Damage',
+  special: 'Special'
 }
 
 Object.keys(FFLogsResources.buffsLight).forEach(patch => {

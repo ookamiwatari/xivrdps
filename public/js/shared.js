@@ -1,13 +1,20 @@
-$(document).ready(function() {
+if (window.location.host === 'xivrdps.herokuapp.com') {
+  window.location = window.location.href.replace('https', 'http').replace(window.location.host, 'www.xivrdps.com')
+}
 
-  $('.tooltip-holder').tooltip({
-    placement: (tip, element) => {
-        var position = $(element).position()
-        if (position.top < 300)
-          return 'bottom'
-        return 'top'
-    }
-  })
+$(document).ready(function() {
+  window.activateTooltips = function() {
+    $('.tooltip-holder').tooltip({
+      placement: (tip, element) => {
+          var position = $(element).position()
+          if (position.top < 300)
+            return 'bottom'
+          return 'top'
+      }
+    })
+  }
+
+  window.activateTooltips()
 
   window.selectLocation = function() {
     window.location = '/listing/' + $('#encounter-list').val()

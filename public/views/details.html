@@ -1,0 +1,23 @@
+{{#hasTargetBlacklist}}
+<h5>The following enemies will be excluded: {{targetBlacklist}}</h5>
+{{/hasTargetBlacklist}}
+{{#bands}}
+  <div class="details-range">
+    <h4>{{startStr}} - {{endStr}}</h4>
+      {{#debuffTargetString}}
+        <h5>{{debuffTargetString}}</h5>
+      {{/debuffTargetString}}
+    {{#entries}}
+    <div class="details-range-entry">
+      <div class="details-entry-define">
+        <div class="details-entry-define-icon"><img src="/img/class/{{type}}.png" alt="{{type}}" /></div>
+        <div class="details-entry-define-name">{{name}}</div>
+      </div>
+      From Buff: {{totalStr}}
+      <br>&#9658;&nbsp;&nbsp;&nbsp;<i>DPS: {{buffDPS}}</i>
+      <br/>Total: {{totalBefore}}
+      <br>&#9658;&nbsp;&nbsp;&nbsp;<i>DPS: {{totalDPS}}</i>
+    </div>
+    {{/entries}}
+  </div>
+{{/bands}}
